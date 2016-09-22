@@ -22,12 +22,12 @@ def call_proc(cmd):
 _prefix = []
 results = []
 pool = ThreadPool(8)
+filePrefix = re.compile(r'\w+\.\w+(?=\.)') #change pattern to match your filenames
 
 for root, dirs, files in os.walk(rootPath):
   files.sort()
   for filename in fnmatch.filter(files, pattern):
     filePath = os.path.join(root, filename)
-    filePrefix = re.compile(r'\w+\.\w+(?=\.)') #change pattern to match your filenames
     matchPrefix = filePrefix.search(filename)
     _prefix.append((matchPrefix.group(), filePath))
 
