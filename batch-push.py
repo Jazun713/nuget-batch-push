@@ -4,25 +4,19 @@ import os
 import re
 import shlex
 import subprocess
+import shutil
 from multiprocessing.pool import ThreadPool
 from collections import OrderedDict
+from os.path import expanduser
 
 
-root_path = os.environ['NuGetPath']
-hostUrl = os.environ['MyGetUrl']
-apiKey = os.environ['MyGetApiKey']
+root_path = os.environ.get('NuGetPath', '/mnt/ntserver/')
+hostUrl = os.environ.get('NugetServerUrl', 'http://wjv-docker01:8081/artifactory/api/nuget/nuget-internal')
+apiKey = os.environ.get('NugetApiKey', '')
 pattern = "*.nupkg"
 
 
-def call_proc(cmd):
-    p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = p.communicate()
-    print(stdout.decode('ascii'))
-    return stdout, stderr
-
-
 def scan_dir(_dir):
-    print(_dir)
     for entry in os.scandir(_dir):
         if entry.name.endswith('.nupkg') and entry.is_file():
             yield entry.name
@@ -37,7 +31,6 @@ def subdirs(path):
 
 gen = subdirs(root_path)
 pool = ThreadPool(8)
-results = []
 
 
 for dir_name in gen:
@@ -54,13 +47,35 @@ for dir_name in gen:
     for key, value in od.items():
         value = value[-1]
         file_path = dir_name + "/" + key + "." + value
-        print("Queuing file: " + file_path)
-        args = "push " + file_path + " " + apiKey + " -s " + hostUrl
-        results.append(pool.apply_async(call_proc, ("nuget " + args,)))
+        module = key.split('.', 1)
+        try:
+            moduletail = module[1]
+        except IndexError:
+            moduletail = module[0]
+        if moduletail == module[0]:
+            orgdir = os.path.expanduser('~/ExtendHealth')
+        else:
+            orgdir = os.path.expanduser('~/ExtendHealth/' + module[0])
+        moduledir = orgdir + "/" + moduletail
+        modulefile = moduledir + "/" + key + "." + value
+        os.makedirs(moduledir, exist_ok=True)
+        if os.path.isfile(modulefile):
+            print("    File %s exists. Skipping..." % modulefile)
+        else:
+            print("    File %s does not exist. Copying..." % modulefile)
+            pool.apply_async(shutil.copy2(file_path, moduledir))
+
+
+local_path = os.path.expanduser('~/ExtendHealth')
+cwd = os.getcwd()
+base_dir = os.path.join(cwd, "Archive")
+os.makedirs(base_dir, exist_ok=True)
+gen2 = subdirs(local_path)
+for dir_name in gen2:
+    root_dir = os.path.join(local_path, dir_name)
+    print("    Archiving %s please wait..." % dir_name)
+    pool.apply_async(shutil.make_archive(os.path.join(base_dir, dir_name), 'zip', root_dir))
 
 
 pool.close()
 pool.join()
-for result in results:
-    out, err = result.get()
-    print("out: {} err: {}".format(out, err))
