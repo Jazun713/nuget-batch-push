@@ -21,7 +21,6 @@ def scan_dir(_dir):
         if entry.name.endswith('.nupkg') and entry.is_file():
             yield entry.name
 
-
 def subdirs(path):
     for entry in os.scandir(path):
         if not entry.name.startswith('.') and entry.is_dir():
@@ -34,6 +33,7 @@ pool = ThreadPool(8)
 
 
 for dir_name in gen:
+    base_src_dir = dir_name
     dir_name = root_path + dir_name
     file_gen = list(scan_dir(dir_name))
     file_gen.sort()
@@ -53,11 +53,11 @@ for dir_name in gen:
         except IndexError:
             moduletail = module[0]
         if moduletail == module[0]:
-            orgdir = os.path.expanduser('~/ExtendHealth')
+            orgdir = os.path.expanduser('~/ExtendHealth/' + base_src_dir)
         else:
-            orgdir = os.path.expanduser('~/ExtendHealth/' + module[0])
-        moduledir = orgdir + "/" + moduletail
-        modulefile = moduledir + "/" + key + "." + value
+            orgdir = os.path.expanduser('~/ExtendHealth/' + base_src_dir + '/' + module[0])
+        moduledir = orgdir + '/' + moduletail
+        modulefile = moduledir + '/' + key + "." + value
         os.makedirs(moduledir, exist_ok=True)
         if os.path.isfile(modulefile):
             print("    File %s exists. Skipping..." % modulefile)
@@ -73,9 +73,8 @@ os.makedirs(base_dir, exist_ok=True)
 gen2 = subdirs(local_path)
 for dir_name in gen2:
     root_dir = os.path.join(local_path, dir_name)
-    print("    Archiving %s please wait..." % dir_name)
+    print("    Archiving %s to zipfile..." % dir_name)
     pool.apply_async(shutil.make_archive(os.path.join(base_dir, dir_name), 'zip', root_dir))
-
 
 pool.close()
 pool.join()
